@@ -247,21 +247,21 @@ module keypad_scan #(
 #### 3. Entradas y salidas
 - Entradas:
 
-- clk : reloj principal.
+clk : reloj principal.
 
-- rst_n : reset asíncrono activo bajo.
+rst_n : reset asíncrono activo bajo.
 
-- columnas : vector one-hot de 4 bits con el estado de las columnas del teclado (pull-down).
+columnas : vector one-hot de 4 bits con el estado de las columnas del teclado (pull-down).
 
 - Salidas:
 
-- filas : vector one-hot de 4 bits que activa secuencialmente cada fila.
+filas : vector one-hot de 4 bits que activa secuencialmente cada fila.
 
-- row : índice (2 bits) de la fila en la que se detectó la tecla.
+row : índice (2 bits) de la fila en la que se detectó la tecla.
 
-- col : índice (2 bits) de la columna donde se detectó la tecla.
+col : índice (2 bits) de la columna donde se detectó la tecla.
 
-- valid : pulso de un ciclo indicando detección de tecla estable tras el debouncing y el escaneo.
+valid : pulso de un ciclo indicando detección de tecla estable tras el debouncing y el escaneo.
 
 
 #### 4. Criterios de diseño
@@ -292,7 +292,7 @@ module keypad_scan #(
 
 
 
-- 2. Parámetros Internos
+2. Parámetros Internos
 ```SystemVerilog
 
 localparam int CNT_WIDTH = $clog2(escaneo);
@@ -301,7 +301,7 @@ localparam int CNT_WIDTH = $clog2(escaneo);
 - CNT_WIDTH: ancho en bits de scan_counter para contar hasta escaneo–1 sin desbordarse
 
 
-- 3. Señales Internas
+3. Señales Internas
 ```SystemVerilog
 
 logic [CNT_WIDTH-1:0] scan_counter;            
@@ -322,7 +322,7 @@ logic                 stable;
 - stable se eleva a 1 cuando columnas permanece sin cambios por ciclos ciclos.]
 
 
-- 4. Generación de la Salida de Filas
+4. Generación de la Salida de Filas
 ```SystemVerilog
 always_comb begin
     filas = 4'b1 << current_row;
@@ -334,7 +334,7 @@ end
 
 - Esto habilita (a nivel físico) la fila correspondiente en el teclado matricial.
 
-- 5. Lógica de Debounce
+5. Lógica de Debounce
 
 
 ```SystemVerilog
@@ -580,19 +580,18 @@ module keypad_decoder (
 
 #### 2. Parámetros
 
-El parámetro recibido en este módulo es 'dataRaw', que se encarga de transmitir una palabra de 7 bits con un error inducido, permitiendo su detección y posterior corrección
+Este módulo no tiene parámetros configurables solamente se encarga de recibir las señales transmitidas por el módulo de escaneo para codificar el resultado de la evaluación de las columnas y filas
 
 #### 3. Entradas y salidas
-Entradas:
-- row (2 bits): identifica la fila activa del teclado matricial.
+- Entradas:
+row (2 bits): identifica la fila activa del teclado matricial.
 
-- col (2 bits): identifica la columna activa del teclado matricial.
-Salidas:
-- bcd_value (4 bits): código BCD resultante de la tecla presionada:
+col (2 bits): identifica la columna activa del teclado matricial.
 
-1–9 para dígitos numéricos.
+- Salidas:
 
-10 = '*', 0 = tecla '0', 11 = '#'.
+
+bcd_value (4 bits): código BCD resultante de la tecla presionada:1–9 para dígitos numéricos, 10 = '*', 0 = tecla '0', 11 = '#'.
 
 - valid (1 bit): indica que la combinación row/col corresponde a una tecla válida (1), o no válida (0).
 #### 4. Criterios de diseño
@@ -751,7 +750,7 @@ Este módulo implementa el multiplexado de tres displays de 7 segmentos. Utiliza
 
 #### 4.2 Explicación del Código
 
-- 1. Encabezado del Módulo
+1. Encabezado del Módulo
 
 ```SystemVerilog
 
@@ -778,7 +777,7 @@ Controla cuántos ciclos de clk pasan antes de cambiar al siguiente dígito.
 
 Ajustar este valor regula la “velocidad de escaneo” y afecta al parpadeo percibido.
 
-- Entrada
+-  \\ Entrada \\
 
 - clk
 
@@ -798,7 +797,7 @@ Cada uno es un nibble BCD (4 bits).
 
 Representan los valores 0–9 que queremos mostrar en cada display.
 
-- Salida
+- \\  Salida  \\
 
 - segments
 
@@ -813,7 +812,7 @@ Bus de 3 bits one-hot: un “0” en la posición i activa el display i, los “
 
 
 
-- 2. Señales Internas
+2. Señales Internas
 ```SystemVerilog
 
 logic [1:0]  current_display;
@@ -846,7 +845,7 @@ Luego lo envía al decodificador de segmentos.
 
 
 
-- 3. Contador de Refresco y Selección de Dígito
+3. Contador de Refresco y Selección de Dígito
 
 ```SystemVerilog
 always_ff @(posedge clk or negedge rst_n) begin
@@ -892,7 +891,7 @@ Permite ciclar exactamente tres estados (0,1,2) usando la comparación == 2'd2.
 
 
 
-- 4. Enrutamiento de la Salida BCD
+4. Enrutamiento de la Salida BCD
 
 ```SystemVerilog
 
@@ -927,7 +926,7 @@ Si == 2, entrega digit2.
 
 Si un valor inesperado (teóricamente imposible), bcd_value=0. 
 
-- 5. Generación de las Líneas de Enable
+5. Generación de las Líneas de Enable
 
 
 ```SystemVerilog
@@ -954,7 +953,7 @@ Bits a ‘1’ = display apagado.
 
 Para current_display = i, todos los bits quedan a ‘1’ excepto el i-ésimo a ‘0’.
 
-- 6.  Decodificador de Segmentos
+6.  Decodificador de Segmentos
 
 
 ```SystemVerilog
@@ -986,30 +985,9 @@ Ejemplo: BCD=4 → segmentos b,c,f,g activos, resto apagados.
 
 
 #### 5. Testbench
-Descripción y resultados de las pruebas hechas
 
-```SystemVerilog
-data_corr = 7'b1000101;
-        sindrome = 3'b101;  
-        #1;
-        $display("correccion_error: in=%b, sindrome=%b => corregido=%b, dato=%b",
-                 data_corr, sindrome, corregido, data_correcta);
-        data_corr = 7'b0000001;
-        sindrome = 3'b001;  
-        #1;
-        $display("correccion_error: in=%b, sindrome=%b => corregido=%b, dato=%b",
-                 data_corr, sindrome, corregido, data_correcta);
-        data_corr = 7'b0111111;
-        sindrome = 3'b111; 
-        #1;
-        $display("correccion_error: in=%b, sindrome=%b => corregido=%b, dato=%b",
-                 data_corr, sindrome, corregido, data_correcta);
-```
-Resultados obtenidos al ejecutar el make test
 
-- correccion_error: in=1000101, sindrome=101 => corregido=1010101, dato=1011
-- correccion_error: in=0000001, sindrome=001 => corregido=0000000, dato=0000
-- correccion_error: in=0111111, sindrome=111 => corregido=1111111, dato=1111
+
 
 
 
@@ -1017,97 +995,15 @@ Resultados obtenidos al ejecutar el make test
 
 ### 3.5 Módulo 5
 
-#### 1. Encabezado del módulo
-```SystemVerilog
-- module display_7bits_leds (
-  input  logic [6:0] coregido,
-    output logic [6:0] led
-);
-```
-#### 2. Parámetros
-
-Este módulo no utiliza parámetros configurables, ya que se trata de una implementación fija de inversión de bits.
-
-#### 3. Entradas y salidas:
-
-Entradas:
-
-- coregido (7 bits): Representa la señal de entrada que se desea visualizar en los LEDs.
-
-Salidas:
-
-- led (7 bits): Representa la salida invertida de la entrada coregido, que se conecta a un conjunto de LEDs.
-
-
-#### 4. Criterios de diseño
-
-#### 4.1 Introducción
-
-- El diseño de este módulo sigue una arquitectura combinacional sencilla, donde la salida se calcula en función de la entrada sin necesidad de registros o almacenamiento temporal. Esto significa que los cambios en la entrada se reflejan inmediatamente en la salida.
-
-#### 4.2 Explicación del Código
-
-- 1. Declaración del Módulo
-```SystemVerilog
-
-
-module display_7bits_leds (
-    input [6:0] coregido,
-    output reg [6:0] led
-);
-```
-module display_7bits_leds: Define el módulo llamado display_7bits_leds.
-input [6:0] coregido: Declara una entrada de 7 bits que representa el código Hamming corregido que se desea mostrar en los LEDs.
-output reg [6:0] led: Declara una salida de 7 bits que representará el estado de los LEDs. Se utiliza reg porque la salida se asigna dentro de un bloque always.
-
-- 2. Asignación de los LEDs
-```SystemVerilog
-
-
-led[0] = ~coregido[0];
-led[1] = ~coregido[1];
-led[2] = ~coregido[2];
-led[3] = ~coregido[3];
-led[4] = ~coregido[4];
-led[5] = ~coregido[5];
-led[6] = ~coregido[6];
-```
-Aquí se asignan los valores de coregido a los LEDs. Cada bit de coregido se invierte (usando la operación NOT ~) antes de ser asignado a la salida led. Esto se hace porque, debido a la conexión física de los LEDs dentro de la FPGA, los LEDs son activados en bajo, lo que significa que se encienden cuando la señal es baja (0) y se apagan cuando la señal es alta (1).
-
-![alt text](image.png)
-
-
-
-#### 5. Testbench
-Descripción y resultados de las pruebas hechas
-
-```SystemVerilog
- coregido_leds = 7'b1010101;
-        #1;
-        $display("display_7bits_leds: in=%b => leds=%b", coregido_leds, leds_out);
-        coregido_leds = 7'b1111111;
-        #1;
-        $display("display_7bits_leds: in=%b => leds=%b", coregido_leds, leds_out);
-        coregido_leds = 7'b0000000;
-        #1;
-        $display("display_7bits_leds: in=%b => leds=%b", coregido_leds, leds_out);
-```
-Resultados obtenidos al ejecutar el make test
-- display_7bits_leds: in=1010101 => leds=0101010
-- display_7bits_leds: in=1111111 => leds=0000000
-- display_7bits_leds: in=0000000 => leds=1111111
-
-
-### 3.6 Módulo 6
-
 
 #### 1. Encabezado del módulo
 ```SystemVerilog
 
 module sevseg(
-    input  [3:0] bcd,       
-    output reg [6:0] segments
+    input  logic [3:0] bcd,       
+    output logic [6:0] segments   
 );
+
 ```
 #### 2. Parámetros
 
