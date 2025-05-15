@@ -401,7 +401,7 @@ Incrementamos debounce_cnt en uno y mantenemos stable = 0 hasta completar el con
 
 - Dejamos stable = 0, pues aún no sabemos si el nuevo valor se mantendrá estable.
 
-- 6. Barrido de Filas y Detección de Tecla
+6. Barrido de Filas y Detección de Tecla
 ```SystemVerilog
 
 
@@ -450,7 +450,7 @@ end
 
 ```
 
-- 6.2 Sensibilidad y reset
+6. 1 Sensibilidad y reset
 
 ```SystemVerilog
 always_ff @(posedge clk or negedge rst_n) begin 
@@ -483,7 +483,7 @@ row, col a 0: salidas limpias.
 
 - Este reset garantiza que, al soltar el reset, el escaneo arranca siempre en fila 0 y en un estado “sin tecla”.
 
-- 6.2  Muestreo de columna a mitad de ciclo
+6. 2 Muestreo de columna a mitad de ciclo
 
 ```SystemVerilog
 
@@ -525,7 +525,7 @@ El unique case convierte el vector one-hot de columnas (col_sample) en un índic
 
 Se produce un pulso a 1 durante un solo ciclo si hay una lectura limpia de tecla. En caso contrario valid queda en 0.
 
-- 6.3  Rotación de filas y conteo de escaneo
+6. 3  Rotación de filas y conteo de escaneo
 
 ```SystemVerilog
 
