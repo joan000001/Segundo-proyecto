@@ -1,6 +1,6 @@
 module keypad_scan #(
-    parameter int escaneo = 100_000,
-    parameter int ciclos = 3
+    parameter int DEBOUNCE_CYCLES = 100_000,
+    parameter int SCAN_CNT_MAX = 3
 )(
     input  logic        clk,
     input  logic        rst_n,
@@ -12,13 +12,13 @@ module keypad_scan #(
 );
 
     
-    localparam int CNT_WIDTH = $clog2(escaneo);
+    localparam int CNT_WIDTH = $clog2(DEBOUNCE_CYCLES);
 
-    // Internal signals
+    
     logic [CNT_WIDTH-1:0]            scan_counter;
     logic [1:0]                      current_row;
     logic [3:0]                      col_sample;
-    logic [$clog2(ciclos)-1:0] debounce_cnt;
+    logic [$clog2(SCAN_CNT_MAX)-1:0] debounce_cnt;
     logic                             stable;
 
     
@@ -33,7 +33,7 @@ module keypad_scan #(
             debounce_cnt <= '0;
             stable       <= 1'b0;
         end else if (columnas == col_sample && columnas != 4'd0) begin
-            if (debounce_cnt == ciclos - 1) begin
+            if (debounce_cnt == SCAN_CNT_MAX - 1) begin
                 stable <= 1'b1;
             end else begin
                 debounce_cnt <= debounce_cnt + 1;
@@ -56,7 +56,7 @@ module keypad_scan #(
             col          <= 2'd0;
         end else begin
            
-            if (scan_counter == (escaneo >> 1) - 1) begin
+            if (scan_counter == (DEBOUNCE_CYCLES >> 1) - 1) begin
                 if (stable && (col_sample & (col_sample - 1)) == 4'd0) begin  
                     row   <= current_row;
                     unique case (col_sample)
@@ -73,13 +73,13 @@ module keypad_scan #(
             end
 
             
-            if (scan_counter == escaneo - 1) begin
+            if (scan_counter == DEBOUNCE_CYCLES - 1) begin
                 scan_counter <= '0;
                 current_row  <= (current_row == 2'd3) ? 2'd0 : current_row + 1;
             end else begin
                 scan_counter <= scan_counter + 1;
                 
-                if (scan_counter != (escaneo >> 1) - 1)
+                if (scan_counter != (DEBOUNCE_CYCLES >> 1) - 1)
                     valid <= 1'b0;
             end
         end

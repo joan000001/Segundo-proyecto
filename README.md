@@ -548,7 +548,7 @@ Se suma 1 al contador.
 Importante: fuera de la ventana de muestreo (escaneo/2)-1, la señal valid se fuerza a 0, de modo que sólo haya un pulso en el instante preciso.
 
 
-#### 5. Testbench
+
 
 
 
@@ -688,6 +688,46 @@ end
 
 
 
+```SystemVerilog
+
+        
+  
+    
+    for (int i = 0; i < 4; i++) begin
+      for (int j = 0; j < 4; j++) begin
+        row = i;
+        col = j;
+        #10;
+        $display("%0t   %b   %b  |     %0d      %b",
+                 $time, row, col, bcd_value, valid);
+      end
+    end
+        
+```
+Resultados obtenidos al ejecutar el make test
+
+Time   row col | bcd_value valid
+
+10000   00   00  |     1      1
+20000   00   01  |     2      1
+30000   00   10  |     3      1
+40000   00   11  |     0      0
+50000   01   00  |     4      1
+60000   01   01  |     5      1
+70000   01   10  |     6      1
+80000   01   11  |     0      0
+90000   10   00  |     7      1
+100000   10   01  |     8      1
+110000   10   10  |     9      1
+120000   10   11  |     0      0
+130000   11   00  |     10      1
+140000   11   01  |     0      1
+150000   11   10  |     11      1
+160000   11   11  |     0      0
+
+
+
+
 
 ### 3.4 Módulo 4
 
@@ -767,7 +807,7 @@ Controla cuántos ciclos de clk pasan antes de cambiar al siguiente dígito.
 
 Ajustar este valor regula la “velocidad de escaneo” y afecta al parpadeo percibido.
 
--  \\ Entrada \\
+ \\ Entrada \\
 
 - clk
 
@@ -787,7 +827,7 @@ Cada uno es un nibble BCD (4 bits).
 
 Representan los valores 0–9 que queremos mostrar en cada display.
 
-- \\  Salida  \\
+\\  Salida  \\
 
 - segments
 
@@ -977,115 +1017,41 @@ Ejemplo: BCD=4 → segmentos b,c,f,g activos, resto apagados.
 #### 5. Testbench
 
 ```SystemVerilog
-initial begin
-   
-    rst_n   = 1'b0;
-    digit0  = 4'd1;
-    digit1  = 4'd2;
-    digit2  = 4'd3;
 
-    #25;
-    rst_n = 1'b1; 
+        
+        rst_n  = 0;
+        digit0 = 4'd1;
+        digit1 = 4'd2;
+        digit2 = 4'd3;
+        #20;
 
-    
-    #200;
-    digit0 = 4'd7;
-    digit1 = 4'd8;
-    digit2 = 4'd9;
+        
+        rst_n = 1;
+        #200;
 
-    
-    #500;
-    $finish;
-  end
-
-  
-  initial begin
-    $display("Time | seg hex | enable");
-    $display("--------------------------");
-    forever begin
-      @(posedge clk);
-      $display("%4dns | %b | %b", $time, segments, enable_displays);
-    end
-  end
+        
+        digit0 = 4'd4; digit1 = 4'd5; digit2 = 4'd6;
+        #200;
+        digit0 = 4'd7; digit1 = 4'd8; digit2 = 4'd9;
+        #200;
+        digit0 = 4'd0; digit1 = 4'd1; digit2 = 4'd2;
+        #200;
         
 ```
 Resultados obtenidos al ejecutar el make test
 
-Time | seg hex | enable   
---------------------------
-   5ns | 1111001 | 110    
-  15ns | 1111001 | 110    
-  25ns | 1111001 | 110    
-  35ns | 1111001 | 110    
-  45ns | 1111001 | 110    
-  55ns | 1111001 | 110    
-  65ns | 1111001 | 110    
-  75ns | 1111001 | 110    
-  85ns | 1111001 | 110    
-  95ns | 1111001 | 110    
- 105ns | 1111001 | 110    
- 115ns | 1111001 | 110    
- 125ns | 1111001 | 110    
- 135ns | 1111001 | 110    
- 145ns | 1111001 | 110    
- 155ns | 1111001 | 110    
- 165ns | 1111001 | 110    
- 175ns | 1111001 | 110    
- 185ns | 1111001 | 110    
- 195ns | 1111001 | 110    
- 205ns | 1111001 | 110    
- 215ns | 1111001 | 110    
- 225ns | 1111001 | 110    
- 235ns | 0000000 | 101    
- 245ns | 0000000 | 101    
- 255ns | 0000000 | 101    
- 265ns | 0000000 | 101    
- 275ns | 0000000 | 101    
- 285ns | 0000000 | 101    
- 295ns | 0000000 | 101
- 305ns | 0000000 | 101
- 315ns | 0000000 | 101
- 325ns | 0000000 | 101
- 335ns | 0000000 | 101
- 345ns | 0000000 | 101
- 355ns | 0000000 | 101
- 365ns | 0000000 | 101
- 375ns | 0000000 | 101
- 385ns | 0000000 | 101
- 395ns | 0000000 | 101
- 405ns | 0000000 | 101
- 415ns | 0000000 | 101
- 425ns | 0000000 | 101
- 435ns | 0000000 | 101
- 445ns | 0010000 | 011
- 455ns | 0010000 | 011
- 465ns | 0010000 | 011
- 475ns | 0010000 | 011
- 485ns | 0010000 | 011
- 495ns | 0010000 | 011
- 505ns | 0010000 | 011
- 515ns | 0010000 | 011
- 525ns | 0010000 | 011
- 535ns | 0010000 | 011
- 545ns | 0010000 | 011
- 555ns | 0010000 | 011
- 565ns | 0010000 | 011
- 575ns | 0010000 | 011
- 585ns | 0010000 | 011
- 595ns | 0010000 | 011
- 605ns | 0010000 | 011
- 615ns | 0010000 | 011
- 625ns | 0010000 | 011
- 635ns | 0010000 | 011
- 645ns | 0010000 | 011
- 655ns | 1111000 | 110
- 665ns | 1111000 | 110
- 675ns | 1111000 | 110
- 685ns | 1111000 | 110
- 695ns | 1111000 | 110
- 705ns | 1111000 | 110
- 715ns | 1111000 | 110
-
+Time    Display  Segments  Enable
+0   0       1111001    110
+125000   1       0100100    101
+220000   1       0010010    101
+235000   2       0000010    011
+345000   0       0011001    110
+420000   0       1111000    110
+455000   1       0000000    101
+565000   2       0010000    011
+620000   2       0100100    011
+675000   0       1000000    110
+785000   1       1111001    101
 
 
 

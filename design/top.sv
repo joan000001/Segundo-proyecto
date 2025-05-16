@@ -6,7 +6,7 @@ module top (
     output logic [2:0]  enable_displays
 );
 
-    // Internal signals
+    
     logic [1:0] row, col;
     logic       raw_valid, dec_valid;
     logic [3:0] decoded;
@@ -14,11 +14,11 @@ module top (
     logic [3:0] digits [2:0];
     logic       key_hash_d;
 
-    // Button detections
+    
     wire key_star = raw_valid && dec_valid && (decoded == 4'd10);
     wire key_hash = raw_valid && dec_valid && (decoded == 4'd11);
 
-    // Keypad scanner
+    
     keypad_scan #(
         .SCAN_CNT_MAX    (100_000),
         .DEBOUNCE_CYCLES (3)
@@ -32,7 +32,7 @@ module top (
         .valid    (raw_valid)
     );
 
-    // Decoder
+   
     keypad_decoder u_dec (
         .row       (row),
         .col       (col),
@@ -40,30 +40,30 @@ module top (
         .valid     (dec_valid)
     );
 
-    // Main state update: advance on '#', reset on '*', capture digits
+    
     always_ff @(posedge clk) begin
-        // Edge detect hash
+        
         key_hash_d <= key_hash;
 
         if (key_star) begin
-            // Reset all digits and target index
+            
             digits[0]      <= 4'd0;
             digits[1]      <= 4'd0;
             digits[2]      <= 4'd0;
             target_digit   <= 2'd0;
         end else begin
-            // Advance target index on rising edge of '#'
+            
             if (key_hash && !key_hash_d) begin
                 target_digit <= (target_digit == 2) ? 2'd0 : target_digit + 1;
             end
-            // Capture digit into active slot (exclude '*' and '#')
+            
             if (raw_valid && dec_valid && (decoded != 4'd10) && (decoded != 4'd11)) begin
                 digits[target_digit] <= decoded;
             end
         end
     end
 
-    // Multiplexed display (no reset)
+   
     multiplex_display #(
         .REFRESH_CNT (100_000)
     ) u_display (

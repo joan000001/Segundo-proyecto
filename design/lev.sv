@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
 module sevseg(
-    input  logic [3:0] bcd,       // 
-    output logic [6:0] segments   // cambie los numero a logina contraria
+    input  logic [3:0] bcd,       
+    output logic [6:0] segments   
 );
 
     logic [6:0] segments_reg;
@@ -29,7 +29,7 @@ module sevseg(
         endcase
     end
 
-  assign segments = ~segments_reg; // Invertir bits para display ánodo comúnmake  
+  assign segments = ~segments_reg; 
 
 endmodule
 
