@@ -17,208 +17,198 @@
 
 ### 3.0 Descripción general del sistema
 
-El sistema desarrollado consiste en la implementación de un código de Hamming (7,4) utilizando la placa FPGA Tang Nano 9K. Se reciben dos señales de entrada a través de interruptores DIP (Deep Switch). La primera señal es un arreglo de 4 bits que se utiliza para generar el código de Hamming, el cual servirá como referencia para la segunda entrada. Esta segunda entrada es un arreglo de 7 bits que puede contener un error intencional, con el propósito de ser corregido mediante la verificación de paridad de bits.
+La función principal de este código es detectar las pulsaciones de un teclado matricial 4×4. Para ello, en cada ciclo de reloj la FPGA envía un pulso de escaneo por una de las filas y lee las columnas en busca de un retorno. Así, al saber qué fila emitió el pulso y qué columna recibió la señal, se identifica exactamente la tecla presionada.
 
-Una vez identificado el error inducido, se despliega la información correspondiente tanto en el arreglo de LEDs de la FPGA como en un display de siete segmentos. Esta pantalla está controlada mediante transistores BJT y muestra no solo la posición del error detectado en la entrada del segundo interruptor DIP, sino también
-
+A continuación, un decodificador traduce esa combinación fila-columna en un valor BCD (0–9) o en códigos para teclas especiales. Esos datos quedan almacenados en registros internos y, cuando se requiera, se vuelven a decodificar para mostrarse en un display de siete segmentos de tres dígitos: cada dígito se habilita secuencialmente mediante su señal enable_display y se actualizan los segmentos según el valor almacenado.
 ### 3.1 Módulo 1
 
 #### 1. Encabezado del módulo
 ```SystemVerilog
 module top (
-    input  [3:0] in,              // 4 bits de datos originales
-    input  [6:0] dataRaw,         // Código Hamming con error manual (7 switches)
-    input        selector,        // 0 = usar encoder | 1 = usar switches con error
-    output [6:0] led,             // Muestra los 7 bits corregidos
-    output [6:0] segments,        // Muestra el dato corregido en hexadecimal (4 bits)
-    output [6:0] segments_error   // Muestra el bit donde se detectó el error
+    input  logic        clk,
+    input  logic [3:0]  columnas,
+    output logic [3:0]  filas,
+    output logic [6:0]  segments,
+    output logic [2:0]  enable_displays
 );
+
 ```
 #### 2. Parámetros
 
-El módulo superior recibe tres parámetros principales:
+El módulo top ofrece cuatro puertos físicos de conexión a la FPGA, organizados en dos bloques funcionales: el teclado matricial y el display de siete segmentos de tres dígitos.
 
-- in:Es un interruptor DIP . Esta señal será enviada al módulo de Hamming para su codificación.
+Teclado matricial
+Las señales del teclado se distribuyen en filas y columnas. Las filas funcionan como líneas de barrido (salidas) y las columnas como líneas de detección (entradas). Al activar secuencialmente cada fila y leer la respuesta en las columnas, el sistema determina qué tecla ha sido pulsada.
 
-- dataraw: Es una señal de entrada de 7 bits, también proveniente de unInterruptor DIP . Representa una palabra ya codificada con un error inducido intencionalmente, con el propósito de ser corregida por el sistema.
-
-- selector: Permite elegir qué información se mostrará en la pantalla de siete segmentos y qué datos serán enviados a los LED. Según su valor, "0" selecciona la palabra codificada (in) o "1", selecciona la palabra corregida (proveniente de dataraw).
-
+Display de siete segmentos
+Cada uno de los siete segmentos está conectado, a través de resistencias, a los LEDs que conforman el dígito. El display de tres dígitos se controla mediante tres señales de habilitación (enable_display), una por cada dígito; al activar la correspondiente, se encienden los segmentos con el valor BCD deseado.
 
 #### 3. Entradas y salidas:
 
-Entradas:
-- in: [3:0] (4 bits) - Datos originales.
-- dataRaw: [6:0] (7 bits) - Código Hamming con posible error.
-- selector: (1 bit) - Control para seleccionar entre el código Hamming generado o el manual.
+- Entradas:
 
+clk : reloj principal.
 
-Salidas:
-- led: [6:0] (7 bits) - Datos corregidos mostrados en LEDs.
-- segments: [6:0] (7 bits) - Dato corregido en formato hexadecimal.
-- segments_error: [6:0] (7 bits) - Bit donde se detectó el error.
+columnas (4 bits): estado de las columnas del teclado matricial (one-hot, pull-down).
+
+- Salidas:
+filas (4 bits) : líneas one-hot de las filas para el escaneo.
+
+segments (7 bits) : bus de segmentos para el display activo.
+
+enable_displays (3 bits) : líneas one-hot para habilitar uno de los tres dígitos.
+
 #### 4. Criterios de diseño
 
 
 #### 4.1 Introducción
 
-Este módulo actúa como el control principal del código, donde se integran los demás módulos y se realizan las llamadas necesarias para asignar las variables correspondientes. Aquí se gestionan tanto las entradas como las salidas, asegurando que cada componente funcione de manera coordinada y eficiente.
+El módulo top integra el escáner de teclado (keypad_scan), el decodificador BCD (keypad_decoder), la máquina de estados de captura de dígitos y el multiplexor de displays (multiplex_display). Permite:
 
+- 1.Escanear la matriz 4×4 y validar pulsaciones.
+
+- 2.Traducir filas/columnas a un valor BCD y señal de validez.
+
+- 3.Capturar hasta tres dígitos, avanzando con ‘#’ y reseteando con ‘*’.
+
+- 4.Mostrar los dígitos en tres displays de 7 segmentos de forma multiplexada.
 #### 4.2 Explicación del Código
 
-- 1. Declaración del Módulo
+1. Definición de puertos
 ```SystemVerilog
 
 module top (
-    input  [3:0] in,
-    input  [6:0] dataRaw,
-    input        selector,
-    output [6:0] led,
-    output [6:0] segments,
-    output [6:0] segments_error
+    input  logic        clk,               // Reloj principal
+    input  logic [3:0]  columnas,          // Líneas de columna del keypad
+    output logic [3:0]  filas,             // Salida de filas para escaneo
+    output logic [6:0]  segments,          // Bus de segmentos 7-seg
+    output logic [2:0]  enable_displays    // Enable one-hot de cada dígito
 );
-```
-- module top: Define el módulo principal llamado top.
-- input: Se declaran las entradas del módulo, especificando el tamaño de cada una.
-- output: Se declaran las salidas del módulo, también especificando el tamaño.
-
-
-- 2. Señales Internas
-```SystemVerilog
-
-wire [6:0] dataRaw_from_encoder;
-wire [6:0] dataRaw_muxed;
-wire [2:0] posError;
-wire [6:0] dataCorregido;
-wire [3:0] dataCorrecta;
-wire [3:0] errorDisplay;
+          
 
 ```
-wire: Se declaran señales internas que se utilizarán para conectar diferentes módulos y almacenar resultados intermedios. Cada señal tiene un tamaño específico que se ajusta a los datos que manejará.
+- clk: sincroniza todo el sistema.
 
-- 3. Instanciación de Módulos
+- columnas: entradas de la matriz 4×4, cada bit corresponde a una columna.
+
+- filas: salidas one-hot que activan una de las 4 filas del teclado.
+
+- segments y enable_displays: controlan los tres dígitos del display multiplexado.
+
+
+2. Señales internas y detección de “*” y “#”
 ```SystemVerilog
 
-hamming74 encoder (
-    .in(in),
-    .ou(dataRaw_from_encoder)
+logic [1:0] row, col;        
+logic       raw_valid, dec_valid;
+logic [3:0] decoded;
+logic [1:0] target_digit;
+logic [3:0] digits [2:0];
+logic       key_hash_d;
+
+wire key_star = raw_valid && dec_valid && (decoded == 4'd10);
+wire key_hash = raw_valid && dec_valid && (decoded == 4'd11);
+
+```
+- row,col: fila y columna detectadas (0–3).
+
+- raw_valid viene de la etapa de escaneo; dec_valid de la etapa de decodificación.
+
+- decoded: valor BCD de 0–9, 10="*", 11="#"
+
+- key_star, key_hash: pulsos válidos de “*” y “#” respectivamente (combinacional).
+
+3.  Escaneo y debounce: keypad_scan
+```SystemVerilog
+
+keypad_scan #(
+    .SCAN_CNT_MAX    (100_000),
+    .DEBOUNCE_CYCLES (3)
+) u_scan (
+    .clk      (clk),
+    .rst_n    (1'b1),
+    .columnas (columnas),
+    .filas    (filas),
+    .row      (row),
+    .col      (col),
+    .valid    (raw_valid)
 );
+
+
+
 ```
 
-hamming74 encoder: Se instancia un módulo llamado hamming74, que se encarga de codificar los datos. Se conectan las entradas y salidas mediante la notación de asignación de puertos.
+Rotea filas cada 100 000 ciclos, hace debounce en 3 muestras. A la mitad de cada periodo de escaneo genera raw_valid junto con row,col.
 
-- 4. Multiplexor
+- 4. Decodificación de coordenadas a BCD: keypad_decoder
 ```SystemVerilog
 
-assign dataRaw_muxed = selector ? dataRaw : dataRaw_from_encoder;
-```
-
-assign: Se utiliza para asignar valores a las señales. En este caso, se utiliza un operador ternario para seleccionar entre dos fuentes de datos basándose en el valor de selector.
-
-
-- 5. Detección de Errores
-```SystemVerilog
-
-hamming_detection detector (
-    .dataRaw(dataRaw_muxed),
-    .posError(posError)
+keypad_decoder u_dec (
+    .row       (row),
+    .col       (col),
+    .bcd_value (decoded),
+    .valid     (dec_valid)
 );
+
 ```
 
-hamming_detection detector: Se instancia un módulo que se encarga de detectar errores en el código Hamming. Se conectan las señales de entrada y salida.
+Convierte la pareja (row,col) en un código 0–11 y marca con dec_valid cuando hay un valor fiable.
 
-- 6. Corrección de Errores
+
+
+
+- 5. Máquina de captura de dígitos y cambio de dígito activo
 ```SystemVerilog
+always_ff @(posedge clk) begin
+    
+    key_hash_d <= key_hash;
 
-correccion_error corrector (
-    .dataRaw(dataRaw_muxed),
-    .sindrome(posError),
-    .correccion(dataCorregido),
-    .dataCorrecta(dataCorrecta)
-);
-```
-
-correccion_error corrector: Se instancia un módulo que corrige el error detectado. Se conectan las señales necesarias para la corrección y la extracción de datos.
-
-- 7. Visualización en LED
-```SystemVerilog
-
-display_7bits_leds display (
-    .coregido(dataCorregido),
-    .led(led)
-);
-```
-display_7bits_leds display: Se instancia un módulo que se encarga de mostrar los datos corregidos en un conjunto de LEDs. Se conectan las señales de entrada y salida.
-
-- 8. Visualización en 7 Segmentos
-```SystemVerilog
-
-sevseg display_hex(
-    .bcd(dataCorrecta),
-    .segments(segments)
-);
-```
-
-
-sevseg display_hex: Se instancia un módulo que convierte los datos en formato BCD a un formato adecuado para un display de 7 segmentos. Se conectan las señales correspondientes.
-
-- 9. Conversión de Posición de Error
-```SystemVerilog
-assign errorDisplay = (posError == 3'b000) ? 4'd0 : {1'b0, posError};
-```
-
-assign: Se utiliza nuevamente para asignar un valor a errorDisplay, que se utiliza para mostrar la posición del error en un formato adecuado.
-
-- 10. Visualización del Error
-```SystemVerilog
-
-sevseg display_error(
-    .bcd(errorDisplay),
-    .segments(segments_error)
-);
-```
-sevseg display_error: Se instancia otro módulo de visualización que muestra la posición del error en un display de 7 segmentos.
-
-
-#### 5. Testbench
-
-Se define el valor que va a tener selector. Se genera digitalmente la señal recibida, ya sea "in" o "dataRaw" se evalúan los resultados
-
-=== Pruebas top ===
-```SystemVerilog
-        $display("Caso | selector | in (ref) | dataRaw (error) | Corrected (7-bit) | 7seg (hex)");
+    if (key_star) begin
         
-        // Caso 1: Modo encoder (selector = 0)
-        selector = 0;
-        in = 4'b1010;
-        dataRaw = 7'b0000000; 
-        #10;
-        $display("  1   |   %b    |   %b   |    %b    |      %b      |  %b", 
-                  selector, in, dataRaw, led, segments);
+        digits[0]    <= 4'd0;
+        digits[1]    <= 4'd0;
+        digits[2]    <= 4'd0;
+        target_digit <= 2'd0;
+    end else begin
         
-        // Caso 2: Modo error (selector = 1)
-        selector = 1;
-        in = 4'b1010;
-        dataRaw = 7'b1000101;
-        #10;
-        $display("  2   |   %b    |   %b   |    %b    |      %b      |  %b", 
-                  selector, in, dataRaw, led, segments);
+        if (key_hash && !key_hash_d)
+            target_digit <= (target_digit == 2) ? 2'd0 : target_digit + 1;
 
-        // Caso 3: Otro valor en modo error
-        selector = 1;
-        in = 4'b0110;
-        dataRaw = 7'b0110010;
-        #10;
-        $display("  3   |   %b    |   %b   |    %b    |      %b      |  %b", 
-                  selector, in, dataRaw, led, segments);
+        
+        if (raw_valid && dec_valid && (decoded < 4'd10))
+            digits[target_digit] <= decoded;
+    end
+end
+
+
 ```
-Resultados obtenidos al ejecutar el make test
+- ‘*’ resetea todos los dígitos y sitúa el cursor en el primer dígito (target_digit = 0).
 
-- ========================== Pruebas del modulo top ================================
-- Caso | selector | in (ref) | dataRaw (error) | Corrected (7-bit) | 7seg (hex)
--   1   |   0    |   1010   |    0000000    |      0101101      |  0001000
--   2   |   1    |   1010   |    1000101    |      0101010      |  0000011
--   3   |   1    |   0110   |    0110010    |      1001100      |  0000010
+- ‘#’ en su flanco ascendente hace target_digit = target_digit + 1 (circular de 0→1→2→0).
+
+- Cuando llega un 0–9 válido y no es “*” ni “#”, se escribe en digits[target_digit].
+
+- 6. Mostrar en los 7-segmentos: multiplex_display
+```SystemVerilog
+
+multiplex_display #(
+    .REFRESH_CNT (100_000)
+) u_display (
+    .clk            (clk),
+    .rst_n          (1'b1),
+    .digit0         (digits[0]),
+    .digit1         (digits[1]),
+    .digit2         (digits[2]),
+    .segments       (segments),
+    .enable_displays(enable_displays)
+);
+
+```
+
+Cada 100 000 ciclos refresca uno a uno los tres dígitos, leyendo digits[0..2] y activando el ánodo correspondiente.
+
+
+
 
 ### 3.2 Módulo 2
 
@@ -276,16 +266,16 @@ Este módulo implementa el escaneo de un teclado matricial 4×4, generando seña
 1. Declaración del Módulo
 ```SystemVerilog
 module keypad_scan #(
-    parameter int escaneo = 100_000,   
-    parameter int ciclos   = 3        
+    parameter int SCAN_CNT_MAX     = 100_000,
+    parameter int DEBOUNCE_CYCLES  = 3
 )(
-    input  logic        clk,         
-    input  logic        rst_n,        
-    input  logic [3:0]  columnas,    
-    output logic [3:0]  filas,        
-    output logic [1:0]  row,          
-    output logic [1:0]  col,          
-    output logic        valid         
+    input  logic        clk,
+    input  logic        rst_n,
+    input  logic [3:0]  columnas,
+    output logic [3:0]  filas,
+    output logic [1:0]  row,
+    output logic [1:0]  col,
+    output logic        valid
 );
 
 ```
@@ -345,16 +335,16 @@ always_ff @(posedge clk or negedge rst_n) begin
         debounce_cnt <= '0;
         stable       <= 1'b0;
     end else if (columnas == col_sample && columnas != 4'd0) begin
-        // La lectura no cambió y no es “ninguna tecla”
+        
         if (debounce_cnt == ciclos - 1) begin
-            stable <= 1'b1;          // Columna estable tras suficientes ciclos
+            stable <= 1'b1;          
         end else begin
             debounce_cnt <= debounce_cnt + 1;
             stable       <= 1'b0;
         end
     end else begin
-        // Cambio detectado o ninguna tecla
-        col_sample   <= columnas;      // Reinicia la muestra de referencia
+        
+        col_sample   <= columnas;      
         debounce_cnt <= '0;
         stable       <= 1'b0;
     end
@@ -986,6 +976,116 @@ Ejemplo: BCD=4 → segmentos b,c,f,g activos, resto apagados.
 
 #### 5. Testbench
 
+```SystemVerilog
+initial begin
+   
+    rst_n   = 1'b0;
+    digit0  = 4'd1;
+    digit1  = 4'd2;
+    digit2  = 4'd3;
+
+    #25;
+    rst_n = 1'b1; 
+
+    
+    #200;
+    digit0 = 4'd7;
+    digit1 = 4'd8;
+    digit2 = 4'd9;
+
+    
+    #500;
+    $finish;
+  end
+
+  
+  initial begin
+    $display("Time | seg hex | enable");
+    $display("--------------------------");
+    forever begin
+      @(posedge clk);
+      $display("%4dns | %b | %b", $time, segments, enable_displays);
+    end
+  end
+        
+```
+Resultados obtenidos al ejecutar el make test
+
+Time | seg hex | enable   
+--------------------------
+   5ns | 1111001 | 110    
+  15ns | 1111001 | 110    
+  25ns | 1111001 | 110    
+  35ns | 1111001 | 110    
+  45ns | 1111001 | 110    
+  55ns | 1111001 | 110    
+  65ns | 1111001 | 110    
+  75ns | 1111001 | 110    
+  85ns | 1111001 | 110    
+  95ns | 1111001 | 110    
+ 105ns | 1111001 | 110    
+ 115ns | 1111001 | 110    
+ 125ns | 1111001 | 110    
+ 135ns | 1111001 | 110    
+ 145ns | 1111001 | 110    
+ 155ns | 1111001 | 110    
+ 165ns | 1111001 | 110    
+ 175ns | 1111001 | 110    
+ 185ns | 1111001 | 110    
+ 195ns | 1111001 | 110    
+ 205ns | 1111001 | 110    
+ 215ns | 1111001 | 110    
+ 225ns | 1111001 | 110    
+ 235ns | 0000000 | 101    
+ 245ns | 0000000 | 101    
+ 255ns | 0000000 | 101    
+ 265ns | 0000000 | 101    
+ 275ns | 0000000 | 101    
+ 285ns | 0000000 | 101    
+ 295ns | 0000000 | 101
+ 305ns | 0000000 | 101
+ 315ns | 0000000 | 101
+ 325ns | 0000000 | 101
+ 335ns | 0000000 | 101
+ 345ns | 0000000 | 101
+ 355ns | 0000000 | 101
+ 365ns | 0000000 | 101
+ 375ns | 0000000 | 101
+ 385ns | 0000000 | 101
+ 395ns | 0000000 | 101
+ 405ns | 0000000 | 101
+ 415ns | 0000000 | 101
+ 425ns | 0000000 | 101
+ 435ns | 0000000 | 101
+ 445ns | 0010000 | 011
+ 455ns | 0010000 | 011
+ 465ns | 0010000 | 011
+ 475ns | 0010000 | 011
+ 485ns | 0010000 | 011
+ 495ns | 0010000 | 011
+ 505ns | 0010000 | 011
+ 515ns | 0010000 | 011
+ 525ns | 0010000 | 011
+ 535ns | 0010000 | 011
+ 545ns | 0010000 | 011
+ 555ns | 0010000 | 011
+ 565ns | 0010000 | 011
+ 575ns | 0010000 | 011
+ 585ns | 0010000 | 011
+ 595ns | 0010000 | 011
+ 605ns | 0010000 | 011
+ 615ns | 0010000 | 011
+ 625ns | 0010000 | 011
+ 635ns | 0010000 | 011
+ 645ns | 0010000 | 011
+ 655ns | 1111000 | 110
+ 665ns | 1111000 | 110
+ 675ns | 1111000 | 110
+ 685ns | 1111000 | 110
+ 695ns | 1111000 | 110
+ 705ns | 1111000 | 110
+ 715ns | 1111000 | 110
+
 
 
 
@@ -1074,7 +1174,7 @@ default: Si el valor de bcd no coincide con ninguno de los casos anteriores, se 
 
 
 #### 5. Testbench
-Descripción y resultados de las pruebas hechas
+
 
 ```SystemVerilog
    bcd_val = 4'hA; 
@@ -1104,57 +1204,100 @@ Resultados obtenidos al ejecutar el make test
 ## 4. Consumo de recursos
 Resumen de Recursos Utilizados
 
-### 4.1 Conexiones (Wires)
-- Número total de conexiones: 41
-- Número total de bits de conexión: 127
-- Conexiones públicas: 41
-- Bits de conexiones públicas: 127
-### 4.2 Memorias
-- Número de memorias: 0
-- Bits de memoria: 0
-### 4.3  Celdas (Cells)
-- Total de celdas: 50
-- GND: 1
-- IBUF (Buffers de entrada): 12
-- LUT1 (Look-Up Tables de 1 entrada): 6
-- LUT3: 6
-- LUT4: 11
-- MUX2_LUT5: 6
-- MUX2_LUT6: 1
-- OBUF (Buffers de salida): 7
-### 4.4  Utilización del Dispositivo
-- VCC (Voltaje de alimentación): 1/1 (100%)
-- SLICE: 23/8640 (0%)
-- IOB (Input/Output Blocks): 19/274 (6%)
-- ODDR (Double Data Rate Output): 0/274 (0%)
-- MUX2_LUT5: 6/4320 (0%)
-- MUX2_LUT6: 1/2160 (0%)
-- GND: 1/1 (100%)
-- GSR (Global Set/Reset): 1/1 (100%)
-- OSC (Oscilador): 0/1 (0%)
-- rPLL (Phase-Locked Loop): 0/2 (0%)
-- Resultados de la Herramienta BC y ABC
-- BC RESULTS:
-- Celdas LUT: 16
-- ABC RESULTS:
-- Señales internas: 51
-- Señales de entrada: 12
-- Señales de salida: 7
-### 4.5 Rendimiento y Tiempos de Retardo
-- Max delay: Se reporta un retardo máximo de 23.84 ns, lo que es importante para asegurar que el diseño cumpla con los requisitos de temporización.
+
+El diseño sintetizado ocupa cerca del 2 % de las celdas lógicas (181 de 8 640 SLICEs) en el GW1NR-9C.
+
+Se utilizan el 6 % de las entradas/salidas (19 de 274 IOBs).
+
+No emplea memorias ni bloques DSP.
+
+El objetivo de frecuencia era 27 MHz; el diseño soporta hasta 142.9 MHz (u_display.clk) y 133 MHz (u_scan.clk), con amplio margen de timing.
+
+2. Consumo de Lógica
+- Total de celdas: 233 (incluye LUTs, flip-flops, constantes y buffers).
+
+- LUTs:
+
+- 5 LUT1, 25 LUT2, 30 LUT3, 34 LUT4, 10 MUX2_LUT5
+
+- Elementos aritméticos: 38 ALUs
+
+- Flip-flops: 6 DFF, 20 DFFE, 21 DFFR, 23 DFFRE
+
+- El uso de LUTs y FFs es muy bajo, dejando abundante espacio para futuras ampliaciones.
+
+3. Entradas/Salidas y Señales
+- Wires: 119 señales (379 bits)
+
+- Buffers: 5 IBUF, 14 OBUF
+
+- Constantes del fabric: 1 VCC, 1 GND, 1 GSR
+
+- Uso de IOB: 19 de 274 (6 %)
+
+- Se dispone de la mayoría de E/S libres para conectar más periféricos.
+
+4. Memoria y DSP
+- Memorias: 0 bloques RAM utilizados
+
+- RAMW: 0/270
+
+- Bloques DSP (rPLL, OSC): no empleados
+
+
+
+5. Rendimiento y Timing
+- Frecuencia objetivo: 27 MHz
+
+-  Máxima frecuencia lograda:
+
+- u_display.clk → 142.92 MHz
+
+- u_scan.clk → 133.00 MHz
+
+- 5.1 Ruta Crítica (posedge → posedge)
+- Lógica: 3.5 ns
+
+- Enrutamiento: 10.6 ns
+
+- Total: ~14.1 ns (equivale a ~71 MHz teórico, pero la herramienta estima 142.9 MHz)
+
+
+
+6. Colocación y Enrutamiento
+- Wirelength inicial: 5 961 → final: ~356
+
+- Tiempo de colocación: 0.11 s
+
+- Tiempo de enrutamiento: 2.08 s
+
+- Simulated annealing redujo el “timing cost” de 70 a 36.
+
+
 
 ## 5. Problemas encontrados durante el proyecto
 
-Durante la realización de este proyecto se presentaron diversos errores que afectarán su desarrollo. Uno de los principales inconvenientes surgió al intentar desplegar información en los LEDs de la FPGA. Debido a una interpretación incorrecta de los planos de conexión de la FPGA. Como resultado, la información se muestra de forma invertida, ya que era necesario negar previamente los valores enviados a los LED.
+Uno de los primeros errores detectados estuvo en la lógica de antirrebote. Al intentar apoyarnos en herramientas externas no se logró integrar correctamente el filtrado de pulsaciones, por lo que acabamos implementando soluciones alternativas que no cumplen con los requisitos de estabilidad ni latencia esperados.
 
-Otro problema significativo fue la incompatibilidad al implementar ciertas herramientas, particularmente con SystemVerilog, a diferencia de Verilog, lo que impidió realizar la síntesis correctamente mediante Yosys.
+Otro fallo crítico fue la ausencia del módulo de suma. Éste debía:
 
-También se presentan dificultades con el despliegue de información en los displays de siete segmentos, ya que estos no reciben correctamente los datos enviados desde la FPGA.
+1. Capturar y almacenar los dígitos leídos por el teclado matricial.
 
-La integración de los distintos módulos en el módulo superior generó múltiples complicaciones , tanto a nivel de sintaxis como en la lógica utilizada, lo cual requirió una revisión detallada de cada componente.
+2. Convertirlos de BCD a binario.
 
-Finalmente, uno de los errores más críticos estuvo relacionado con la correcta implementación de las constraints , ya que fue necesario especificar adecuadamente el tipo de entrada y resistencias pull-up o pull-down .
+3. Realizar la operación aritmética.
 
+4. Enviar el resultado al display de siete segmentos.
+
+Sin ese bloque, no se pudo procesar ni mostrar la suma de los valores introducidos.
+
+Por último, el propio escaneo del teclado presentó problemas recurrentes:
+
+El contador de escaneo y el reloj no estaban sincronizados, lo que generaba saltos o lecturas fantasma.
+
+A veces era necesario mantener la tecla pulsada durante muchos ciclos para que el sistema la detectara.
+
+Estas deficiencias obligaron a revisar a fondo tanto la parametrización del temporizador de escaneo como la lógica de muestreo de columnas.
 
 
 
